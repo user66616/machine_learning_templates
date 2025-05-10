@@ -1,0 +1,93 @@
+# 导入必要的库
+import pandas as pd  # 用于数据处理和分析
+import numpy as np   # 用于数值计算
+from sklearn.model_selection import train_test_split  # 用于划分训练集和测试集
+from sklearn.preprocessing import StandardScaler      # 用于特征标准化
+from sklearn.ensemble import RandomForestClassifier   # 随机森林分类器
+from sklearn.metrics import classification_report     # 用于模型评估
+
+# 1. 加载数据
+df = pd.read_csv('/content/train.csv')  # 从CSV文件中读取训练数据
+
+# 2. 数据预处理
+# 删除不需要的列
+df = df.drop(columns=['id', 'CustomerId', 'Surname'])  # 删除对预测没有帮助的列
+
+# 3. 准备特征和目标变量
+X = df.drop('Exited', axis=1)    # 特征矩阵，删除目标变量列
+y = df['Exited']                 # 目标变量
+
+# 4. 处理分类特征
+# 使用pandas的get_dummies进行独热编码
+X = pd.get_dummies(X, columns=['Geography', 'Gender'])  # 对地理位置和性别进行独热编码
+
+# 5. 划分训练集和测试集
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,           # 测试集占20%
+    random_state=42,         # 设置随机种子，确保结果可复现
+    stratify=y               # 确保划分后类别比例保持一致
+)
+
+# 6. 特征标准化
+scaler = StandardScaler()                    # 创建标准化器
+X_train_scaled = scaler.fit_transform(X_train)  # 对训练集进行拟合和转换
+X_test_scaled = scaler.transform(X_test)        # 对测试集进行转换
+
+# 7. 创建和训练模型
+# 初始化随机森林分类器
+rf_model = RandomForestClassifier(
+    n_estimators=100,        # 决策树的数量
+    max_depth=10,            # 树的最大深度
+    random_state=42          # 随机种子
+)
+
+# 训练模型
+rf_model.fit(X_train_scaled, y_train)  # 使用训练数据拟合模型
+
+# 8. 模型评估
+# 在测试集上进行预测
+y_pred = rf_model.predict(X_test_scaled)
+
+# 打印分类报告
+print("\n分类报告:")
+print(classification_report(y_test, y_pred, digits=4))
+
+# 9. 特征重要性分析
+# 获取特征重要性得分
+feature_importance = pd.DataFrame({
+    '特征': X_train.columns,
+    '重要性': rf_model.feature_importances_
+})
+# 按重要性降序排序
+feature_importance = feature_importance.sort_values('重要性', ascending=False)
+
+print("\n特征重要性排序:")
+print(feature_importance)
+
+# 10. 对测试集进行预测
+test_df = pd.read_csv('/content/test.csv')  # 读取测试数据
+test_ids = test_df['id']                    # 保存ID列
+test_df = test_df.drop(['id', 'CustomerId', 'Surname'], axis=1)  # 删除不需要的列
+
+# 对测试集进行相同的预处理
+test_df = pd.get_dummies(test_df, columns=['Geography', 'Gender'])  # 独热编码
+# 确保测试集具有与训练集相同的列
+for col in X_train.columns:
+    if col not in test_df.columns:
+        test_df[col] = 0
+test_df = test_df[X_train.columns]  # 保持列顺序一致
+
+# 标准化测试数据
+test_scaled = scaler.transform(test_df)
+
+# 进行预测
+test_predictions = rf_model.predict(test_scaled)
+
+# 创建提交文件
+submission = pd.DataFrame({
+    'id': test_ids,
+    'Exited': test_predictions
+})
+submission.to_csv('prediction.csv', index=False)
+print("\n预测结果已保存到 prediction.csv")
