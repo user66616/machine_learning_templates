@@ -1,99 +1,118 @@
 """
 卷积神经网络(CNN)模板
-用于图像分类等任务
+功能：使用PyTorch实现基础CNN分类器
 
-算法流程：
-1. 网络构建
-   - 卷积层提取特征
-   - 池化层降维压缩
-   - 全连接层分类决策
+算法原理：
+1. 使用卷积层提取图像特征
+2. 使用池化层降维和提取主要特征
+3. 使用全连接层进行最终分类
 
-2. 前向传播
-   - 输入数据通过卷积层
-   - 特征图经过激活函数
-   - 池化层降低维度
-   - 全连接层输出预测
-
-3. 反向传播
-   - 计算损失函数
-   - 计算梯度
-   - 更新网络参数
-
-4. 模型训练
-   - 批量处理数据
-   - 迭代优化参数
-   - 验证模型性能
-
-5. 预测推理
-   - 输入新的图像
-   - 通过训练好的网络
-   - 输出分类结果
+优点：
+1. 特征提取自动化
+2. 参数共享减少计算量
+3. 平移不变性
+4. 适合图像处理任务
 """
 
-# 导入必要的库
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+# ================ 导入必要的库 ================
+import torch                                     # PyTorch深度学习框架
+import torch.nn as nn                           # 神经网络模块
+import torch.optim as optim                     # 优化器模块
+from torch.utils.data import DataLoader         # 数据加载器
+from torchvision import datasets, transforms    # 视觉数据集和转换工具
 
-# 生成示例数据
+# ================ 1. 数据预处理 ================
+# 定义数据转换操作
 transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))
+    transforms.ToTensor(),                      # 将图像转换为张量格式
+    transforms.Normalize((0.5,), (0.5,))        # 标准化图像数据到[-1,1]范围
 ])
 
-# 加载MNIST数据集作为示例
-train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
-test_dataset = datasets.MNIST('./data', train=False, transform=transform)
-
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
-
-# 定义CNN模型
-model = nn.Sequential(
-    nn.Conv2d(1, 32, kernel_size=3),
-    nn.ReLU(),
-    nn.MaxPool2d(2),
-    nn.Conv2d(32, 64, kernel_size=3),
-    nn.ReLU(),
-    nn.MaxPool2d(2),
-    nn.Flatten(),
-    nn.Linear(1600, 128),
-    nn.ReLU(),
-    nn.Linear(128, 10)
+# 加载MNIST训练集
+train_dataset = datasets.MNIST(
+    './data',                                   # 数据保存路径
+    train=True,                                 # 指定为训练集
+    download=True,                              # 如果不存在则下载
+    transform=transform                         # 应用数据转换
 )
 
-# 定义损失函数和优化器
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters())
+# 加载MNIST测试集
+test_dataset = datasets.MNIST(
+    './data',                                   # 数据保存路径
+    train=False,                                # 指定为测试集
+    transform=transform                         # 应用数据转换
+)
 
-# 训练模型
-num_epochs = 5
+# 创建数据加载器
+train_loader = DataLoader(
+    train_dataset,                              # 训练数据集
+    batch_size=64,                              # 每批处理64张图片
+    shuffle=True                                # 随机打乱数据
+)
+
+test_loader = DataLoader(
+    test_dataset,                               # 测试数据集
+    batch_size=64,                              # 每批处理64张图片
+    shuffle=False                               # 不需要打乱测试数据
+)
+
+# ================ 2. 定义CNN模型 ================
+# 使用Sequential容器按顺序构建网络层
+model = nn.Sequential(
+    # 第一个卷积层：输入1通道，输出32通道，3x3卷积核
+    nn.Conv2d(1, 32, kernel_size=3),           # 输入维度:(batch_size, 1, 28, 28)
+    nn.ReLU(),                                 # ReLU激活函数，增加非线性
+    nn.MaxPool2d(2),                           # 2x2最大池化，减少特征图尺寸
+    
+    # 第二个卷积层：输入32通道，输出64通道，3x3卷积核
+    nn.Conv2d(32, 64, kernel_size=3),          # 输入维度:(batch_size, 32, 13, 13)
+    nn.ReLU(),                                 # ReLU激活函数
+    nn.MaxPool2d(2),                           # 继续池化降维
+    
+    # 展平层：将特征图转换为一维向量
+    nn.Flatten(),                              # 输入维度:(batch_size, 64, 5, 5)
+    
+    # 第一个全连接层：将特征映射到128维空间
+    nn.Linear(1600, 128),                      # 输入1600 = 64 * 5 * 5
+    nn.ReLU(),                                 # ReLU激活函数
+    
+    # 输出层：映射到10个类别（数字0-9）
+    nn.Linear(128, 10)                         # 最终输出10个类别的概率
+)
+
+# ================ 3. 定义损失函数和优化器 ================
+criterion = nn.CrossEntropyLoss()              # 交叉熵损失函数，适用于多分类
+optimizer = optim.Adam(model.parameters())      # Adam优化器，自适应学习率
+
+# ================ 4. 训练模型 ================
+num_epochs = 5                                 # 训练5轮
 for epoch in range(num_epochs):
-    model.train()
+    model.train()                              # 设置为训练模式
     for batch_idx, (data, target) in enumerate(train_loader):
-        optimizer.zero_grad()
-        output = model(data)
-        loss = criterion(output, target)
-        loss.backward()
-        optimizer.step()
+        optimizer.zero_grad()                   # 清空梯度缓存
+        output = model(data)                    # 前向传播
+        loss = criterion(output, target)        # 计算损失
+        loss.backward()                         # 反向传播
+        optimizer.step()                        # 更新模型参数
         
+        # 每100批次打印一次训练信息
         if batch_idx % 100 == 0:
             print(f'Epoch: {epoch}, Batch: {batch_idx}, Loss: {loss.item():.4f}')
 
-# 测试模型
-model.eval()
-correct = 0
-total = 0
-with torch.no_grad():
-    for data, target in test_loader:
-        output = model(data)
-        _, predicted = torch.max(output.data, 1)
-        total += target.size(0)
-        correct += (predicted == target).sum().item()
+# ================ 5. 测试模型 ================
+model.eval()                                   # 设置为评估模式
+correct = 0                                    # 正确预测计数
+total = 0                                      # 总样本计数
 
+# 在测试集上评估模型
+with torch.no_grad():                          # 不计算梯度，节省内存
+    for data, target in test_loader:
+        output = model(data)                    # 前向传播
+        _, predicted = torch.max(output.data, 1)  # 获取最大概率的类别
+        total += target.size(0)                # 累加样本总数
+        correct += (predicted == target).sum().item()  # 累加正确预测数
+
+# 打印测试集准确率
 print(f'准确率: {100 * correct / total:.2f}%')
 
 
