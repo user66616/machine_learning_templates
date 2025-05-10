@@ -1,0 +1,100 @@
+# 导入必要的库
+import numpy as np  # 用于数值计算
+import pandas as pd  # 用于数据处理
+from sklearn.cluster import KMeans  # K-Means聚类算法
+from sklearn.preprocessing import StandardScaler  # 数据标准化
+from sklearn.metrics import silhouette_score  # 轮廓系数评估
+import matplotlib.pyplot as plt  # 数据可视化
+
+# 1. 数据准备
+# 生成模拟数据（实际使用时替换为你的数据加载代码）
+# 这里生成1000个样本，每个样本2个特征
+data = np.random.rand(1000, 2)  # 生成1000行2列的随机数据
+df = pd.DataFrame(data, columns=['Feature1', 'Feature2'])  # 转换为DataFrame
+
+# 2. 数据预处理
+# 标准化数据（K-Means对特征的尺度敏感）
+scaler = StandardScaler()  # 创建标准化对象
+scaled_data = scaler.fit_transform(df)  # 拟合并转换数据
+
+# 3. 确定最佳聚类数量（肘部法则）
+wcss = []  # 初始化保存每个K值的WCSS（组内平方和）列表
+k_range = range(1, 11)  # 测试K值从1到10
+
+# 计算不同K值下的WCSS
+for k in k_range:
+    kmeans = KMeans(n_clusters=k, init='k-means++', random_state=42)  # 创建K-Means模型
+    kmeans.fit(scaled_data)  # 拟合数据
+    wcss.append(kmeans.inertia_)  # 保存当前K值的WCSS
+
+# 绘制肘部法则图
+plt.figure(figsize=(10, 6))  # 设置图形大小
+plt.plot(k_range, wcss, 'bo-')  # 绘制折线图
+plt.title('Elbow Method For Optimal K')  # 标题
+plt.xlabel('Number of clusters (K)')  # X轴标签
+plt.ylabel('Within-Cluster Sum of Squares (WCSS)')  # Y轴标签
+plt.xticks(k_range)  # 设置X轴刻度
+plt.grid()  # 显示网格
+plt.show()  # 显示图形
+
+# 4. 选择最佳K值（这里假设通过肘部法则确定K=3）
+optimal_k = 3  # 根据肘部法则选择的最佳K值
+
+# 5. 训练K-Means模型
+kmeans = KMeans(
+    n_clusters=optimal_k,  # 聚类数量
+    init='k-means++',  # 初始化方法（比随机初始化更高效）
+    max_iter=300,  # 最大迭代次数
+    n_init=10,  # 用不同初始质心运行算法的次数
+    random_state=42  # 随机种子，保证结果可复现
+)
+kmeans.fit(scaled_data)  # 拟合数据
+
+# 6. 获取聚类结果
+clusters = kmeans.labels_  # 获取每个样本的聚类标签
+centroids = kmeans.cluster_centers_  # 获取聚类中心
+
+# 7. 评估聚类效果（轮廓系数）
+# 轮廓系数范围在[-1,1]，越接近1表示聚类效果越好
+silhouette_avg = silhouette_score(scaled_data, clusters)
+print(f"Silhouette Score: {silhouette_avg:.3f}")
+
+# 8. 可视化聚类结果
+plt.figure(figsize=(10, 6))  # 设置图形大小
+
+# 绘制所有样本点，按聚类标签着色
+plt.scatter(
+    scaled_data[:, 0],  # 第一个特征值
+    scaled_data[:, 1],  # 第二个特征值
+    c=clusters,  # 使用聚类标签作为颜色
+    cmap='viridis',  # 颜色映射
+    alpha=0.7,  # 透明度
+    edgecolors='k'  # 点边缘颜色
+)
+
+# 绘制聚类中心
+plt.scatter(
+    centroids[:, 0],  # 聚类中心的第一个特征值
+    centroids[:, 1],  # 聚类中心的第二个特征值
+    c='red',  # 红色表示中心点
+    s=200,  # 点大小
+    marker='X',  # 点形状为X
+    label='Centroids'  # 图例标签
+)
+
+# 添加图表元素
+plt.title('K-Means Clustering Results')  # 标题
+plt.xlabel('Feature 1 (Standardized)')  # X轴标签
+plt.ylabel('Feature 2 (Standardized)')  # Y轴标签
+plt.legend()  # 显示图例
+plt.grid()  # 显示网格
+plt.show()  # 显示图形
+
+# 9. 将聚类结果添加到原始数据
+df['Cluster'] = clusters  # 添加聚类标签列
+
+# 10. 分析聚类特征（可选）
+# 计算每个聚类的特征均值
+cluster_summary = df.groupby('Cluster').mean()
+print("\nCluster Feature Means:")
+print(cluster_summary)
